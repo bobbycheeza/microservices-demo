@@ -1,125 +1,109 @@
 # Online Boutique — Proyecto Integrador DevOps
 
-Implementación de una solución DevOps para automatizar la infraestructura, construcción de imágenes, despliegue de microservicios y gestión de secretos de Online Boutique mediante Terraform, GitHub Actions, Docker, Kubernetes, Helm, Ansible y HashiCorp Vault.
+Implementación de DevOps para automatizar infraestructura, construcción de imágenes, despliegue de microservicios y administración de secretos con Terraform, GitHub Actions, Docker, Kubernetes, Helm, Ansible y HashiCorp Vault.
+
+**Repositorio:** https://github.com/bobbycheeza/microservices-demo
 
 ## 1. Descripción del proyecto
 
-Online Boutique es una aplicación de comercio electrónico basada en microservicios. Incluye funciones como catálogo de productos, carrito de compras, pagos, recomendaciones, envíos y procesamiento de pedidos.
-
-Este proyecto se desarrolló como parte de la materia **Proyecto Integrador de la Metodología DevOps**, con el objetivo de aplicar herramientas de automatización, integración continua, entrega continua e infraestructura como código.
+Online Boutique es una aplicación de comercio electrónico basada en microservicios. Cuenta con catálogo de productos, carrito, pagos, recomendaciones, envíos y procesamiento de pedidos. Este proyecto aplica automatización DevOps en un clúster Kubernetes local y un servidor Vault en AWS EC2.
 
 ## 2. Problema identificado
 
-En una aplicación formada por varios microservicios, administrar y actualizar cada componente manualmente puede consumir mucho tiempo y provocar errores.
+En la propuesta comercial de la Fase I se identificó que actualizar manualmente varios microservicios puede provocar retrasos, errores de configuración y fallas de comunicación entre servicios. Por ejemplo, cambiar el servicio de pagos requiere comprobar que siga funcionando con el carrito y los demás componentes.
 
-Entre los principales problemas identificados se encuentran:
+Los beneficios propuestos fueron: **actualizaciones más rápidas, menos errores, mayor confiabilidad, administración más sencilla y preparación para atender más usuarios**. El proyecto busca avanzar hacia estos beneficios automatizando infraestructura, construcción de imágenes, despliegues y credenciales. No se afirma una mejora de disponibilidad o escalabilidad sin mediciones.
 
-- La necesidad de construir y actualizar múltiples servicios.
-- Los errores que pueden ocurrir durante despliegues manuales.
-- La dificultad de mantener configuraciones consistentes.
-- El riesgo de exponer credenciales en archivos o repositorios.
-- La necesidad de repetir procesos de instalación y configuración.
+## 3. Propuesta DevOps y beneficios obtenidos
 
-## 3. Propuesta DevOps
+- **Terraform:** infraestructura local kind y servidor AWS definidos mediante código.
+- **GitHub Actions:** construcción y publicación automática de imágenes.
+- **Docker Hub:** almacenamiento de imágenes.
+- **Kubernetes kind:** ejecución local de microservicios.
+- **Helm:** despliegue organizado mediante un Chart personalizado.
+- **Ansible:** instalación y configuración repetible de Vault.
+- **Vault:** almacenamiento centralizado de credenciales con permisos limitados.
+- **Runner self-hosted:** despliegue desde el equipo que tiene acceso al clúster local.
 
-La propuesta consiste en automatizar las principales actividades de infraestructura y despliegue mediante herramientas DevOps.
-
-Se plantearon las siguientes soluciones:
-
-- **Terraform:** definir y crear infraestructura mediante código.
-- **GitHub Actions:** automatizar la construcción y publicación de imágenes Docker.
-- **Docker Hub:** almacenar las imágenes de los microservicios.
-- **Kubernetes kind:** ejecutar la aplicación en un clúster local.
-- **Helm:** administrar los despliegues de Kubernetes.
-- **Ansible:** automatizar la instalación y configuración de Vault.
-- **HashiCorp Vault:** almacenar credenciales y controlar el acceso mediante políticas.
+| Beneficio prometido en Fase I | Resultado comprobado |
+|---|---|
+| Actualizaciones más rápidas | Pipelines exitosos de 2 min 34 s, 2 min 31 s y 2 min 18 s; no existe una medición comparable del proceso manual |
+| Menos trabajo manual | Construcción y publicación automática de 12 imágenes Docker |
+| Administración consistente | Terraform recreó el clúster; Ansible terminó su segunda ejecución con `changed=0` |
+| Gestión más segura de credenciales | Vault, política de lectura, rechazo HTTP 403 a escritura y reducción de 2 a 0 secretos de Docker Hub guardados directamente en GitHub |
+| Aplicación confiable para pruebas | Despliegue exitoso y frontend accesible en `localhost:8080`; no se midió disponibilidad de producción |
+| Preparación para más usuarios | Arquitectura de microservicios; no se realizaron pruebas de carga que cuantifiquen escalabilidad |
 
 ## 4. Arquitectura de la solución
 
-El proyecto combina recursos locales y servicios en la nube.
-
 ```mermaid
 flowchart TD
-    A[Desarrollador] -->|Git push a main| B[GitHub]
+    A[Desarrollador] -->|Push a main o ejecución manual| B[GitHub]
     B --> C[GitHub Actions]
-    C -->|Consulta credenciales| D[Vault en AWS EC2]
-    C -->|Construye y publica imágenes| E[Docker Hub]
-    C -->|Ejecuta job de despliegue| F[Runner self-hosted]
-    F -->|Helm upgrade --install| G[Kubernetes kind]
+    C -->|Solicita credenciales| D[Vault en AWS EC2]
+    C -->|Construye y publica 12 imágenes| E[Docker Hub]
+    C -->|Job deploy| F[Runner self-hosted Windows]
+    F -->|Helm upgrade --install| G[Kubernetes kind local]
     E -->|Descarga imágenes| G
     G --> H[Online Boutique]
-    I[Terraform] -->|Provisiona| D
-    I -->|Crea clúster| G
+    I[Terraform AWS] -->|Define EC2| D
     J[Ansible] -->|Instala y configura| D
+    K[Terraform local] -->|Define clúster| G
 ```
 
-El proceso comienza cuando se envían cambios a la rama `main` del repositorio. GitHub Actions ejecuta el pipeline, obtiene las credenciales de Docker Hub desde Vault y construye las imágenes.
-
-Después, el job de despliegue utiliza un runner self-hosted para ejecutar Helm sobre el clúster Kubernetes local.
+GitHub Actions utiliza runners alojados por GitHub para construir imágenes y un runner self-hosted para desplegar en el clúster local. Las credenciales de Docker Hub se obtienen de Vault.
 
 ## 5. Estructura principal del repositorio
 
-| Ruta | Descripción |
+| Ruta | Función |
 |---|---|
-| `.github/workflows/ci-build.yml` | Pipeline de construcción, publicación y despliegue |
-| `.github/workflows/vault-demo.yml` | Prueba manual de integración con Vault |
-| `terraform_local/main.tf` | Creación del clúster kind |
-| `terraform_aws/main.tf` | Infraestructura AWS para Vault |
-| `ansible-lab/instalar-vault.yml` | Instalación y configuración de Vault |
-| `ansible-lab/templates/vault.hcl.j2` | Plantilla de configuración de Vault |
-| `ansible-lab/politicas/ci-readonly.hcl` | Política de lectura para el pipeline |
-| `helm-chart-custom/values.yaml` | Configuración de los servicios |
-| `helm-chart-custom/templates/` | Plantillas de Kubernetes |
+| `.github/workflows/ci-build.yml` | Construcción, publicación y despliegue |
+| `.github/workflows/vault-demo.yml` | Prueba de integración con Vault |
+| `terraform_local/main.tf` | Clúster kind |
+| `terraform_aws/main.tf` | Recursos AWS |
+| `ansible-lab/instalar-vault.yml` | Playbook de instalación |
+| `ansible-lab/templates/vault.hcl.j2` | Plantilla de Vault |
+| `ansible-lab/politicas/ci-readonly.hcl` | Política de lectura |
+| `helm-chart-custom/values.yaml` | Valores del Chart |
+| `helm-chart-custom/templates/` | Recursos Kubernetes |
+| `src/` | Código de microservicios |
 
 ## 6. Infraestructura con Terraform
 
 ### 6.1 Clúster local
 
-Se utilizó Terraform con el proveedor `tehcyx/kind`, versión `0.7.0`, para definir el clúster local.
+En `terraform_local/main.tf` se utiliza el proveedor `tehcyx/kind` versión `0.7.0` para definir el clúster `online-boutique`. En la Fase II se comprobó que podía eliminarse y recrearse con Terraform; el nodo volvió a aparecer en estado `Ready`.
 
-El archivo `terraform_local/main.tf` crea un clúster llamado `online-boutique` y espera hasta que esté listo.
+### 6.2 AWS EC2
 
-Esto permite reproducir la infraestructura local mediante código, en lugar de crear el clúster manualmente.
+`terraform_aws/main.tf` define infraestructura en `us-east-1`: Ubuntu Server 24.04, instancia `t3.micro`, llave SSH, reglas de acceso para los puertos 22 y 8200 y un output llamado `ip_publica`.
 
-### 6.2 Infraestructura AWS
+El profesor pidió mostrar el recurso `aws_instance` y el output. **El siguiente fragmento es una referencia explicativa y debe sustituirse por el código literal de `terraform_aws/main.tf` antes de entregar**, porque todavía no se ha cotejado ese archivo:
 
-El archivo `terraform_aws/main.tf` define los siguientes recursos:
+```hcl
+# Ejemplo de estructura: verificar identificadores y atributos en main.tf
+resource "aws_instance" "vault" {
+  ami           = var.ami_ubuntu
+  instance_type = "t3.micro"
+  # Configuración de llave SSH y grupo de seguridad en el archivo real
+}
 
-- Proveedor AWS en la región `us-east-1`.
-- Imagen Ubuntu Server 24.04.
-- Llave pública SSH para acceder al servidor.
-- Grupo de seguridad con los puertos 22 y 8200.
-- Instancia EC2 de tipo `t3.micro`.
-- Output `ip_publica` para conocer la dirección de la instancia.
+output "ip_publica" {
+  value = aws_instance.vault.public_ip
+}
+```
 
-La instancia EC2 se utiliza para ejecutar HashiCorp Vault.
-
-**Nota de seguridad:** esta configuración corresponde a un laboratorio. Los puertos están abiertos a `0.0.0.0/0` y el listener de Vault utiliza HTTP. Para producción se necesitaría restringir el acceso y habilitar TLS.
+**Nota de seguridad:** esta es una configuración de laboratorio. El acceso HTTP a Vault y las reglas abiertas a `0.0.0.0/0` no son apropiados para producción. Sería necesario restringir la red y configurar TLS.
 
 ## 7. Automatización con Ansible y Vault
 
-El playbook `ansible-lab/instalar-vault.yml` automatiza la preparación del servidor.
+El playbook `ansible-lab/instalar-vault.yml` agrega el repositorio de HashiCorp, instala Vault, prepara el almacenamiento, genera `/etc/vault.d/vault.hcl`, habilita el servicio y utiliza un handler para reiniciarlo cuando cambia la configuración.
 
-Sus actividades principales son:
+En la Fase III, una segunda ejecución del playbook terminó con **`changed=0`**. También se comprobó el handler modificando temporalmente la configuración y restaurándola después.
 
-1. Descargar la llave del repositorio de HashiCorp.
-2. Agregar el repositorio de paquetes.
-3. Instalar Vault.
-4. Crear la carpeta de almacenamiento con permisos.
-5. Generar `/etc/vault.d/vault.hcl` mediante una plantilla.
-6. Iniciar y habilitar el servicio Vault.
+### 7.1 Secretos y política de acceso
 
-El playbook también utiliza un handler que reinicia Vault cuando cambia su configuración.
-
-### 7.1 Administración de secretos
-
-Vault almacena las credenciales utilizadas por GitHub Actions para autenticarse en Docker Hub.
-
-El workflow consulta la ruta:
-
-`secret/data/online-boutique/dockerhub`
-
-La política `ci-readonly.hcl` permite únicamente la lectura de secretos dentro de la ruta autorizada:
+Las credenciales de Docker Hub se consultan desde `secret/data/online-boutique/dockerhub`. La política de CI permite lectura, no escritura:
 
 ```hcl
 path "secret/data/online-boutique/*" {
@@ -127,228 +111,230 @@ path "secret/data/online-boutique/*" {
 }
 ```
 
-De esta manera, el pipeline no necesita guardar directamente las credenciales de Docker Hub en el código.
+La prueba de escritura con el token de CI recibió **HTTP 403**. Después de integrar Vault se retiraron de GitHub los secretos `DOCKERHUB_USERNAME` y `DOCKERHUB_TOKEN`: pasaron de **2 a 0**. GitHub conserva `VAULT_TOKEN` para autenticar el pipeline y la variable `VAULT_ADDR` para localizar el servidor.
 
-La variable `VAULT_ADDR` indica la dirección del servidor, mientras que el secreto de GitHub `VAULT_TOKEN` permite autenticarse ante Vault.
-
-**Importante:** no publicar tokens reales, llaves de desbloqueo de Vault, credenciales de AWS ni contraseñas en el repositorio.
+**Nunca publicar tokens, contraseñas, llaves de desellado, credenciales AWS ni archivos de estado de Terraform.**
 
 ## 8. Pipeline CI/CD con GitHub Actions
 
-El workflow principal se encuentra en `.github/workflows/ci-build.yml`.
+El workflow `.github/workflows/ci-build.yml` se ejecuta al enviar cambios a `main` y también permite ejecución manual con `workflow_dispatch`.
 
-Se ejecuta automáticamente cuando se realiza un `push` a la rama `main`.
+### 8.1 Construcción y publicación
 
-### 8.1 Integración continua
+La matriz de `build-and-push` incluye 12 servicios: `frontend`, `adservice`, `cartservice`, `checkoutservice`, `currencyservice`, `emailservice`, `loadgenerator`, `paymentservice`, `productcatalogservice`, `recommendationservice`, `shippingservice` y `shoppingassistantservice`. Para `cartservice` se usa el contexto `./src/cartservice/src`.
 
-El job `build-and-push` se ejecuta en `ubuntu-latest`.
+Fragmento del workflow que obtiene credenciales desde Vault:
 
-Sus pasos principales son:
+```yaml
+- name: Pedir credenciales de Docker Hub a Vault
+  uses: hashicorp/vault-action@v4
+  with:
+    url: ${{ vars.VAULT_ADDR }}
+    token: ${{ secrets.VAULT_TOKEN }}
+    secrets: |
+      secret/data/online-boutique/dockerhub username | DOCKERHUB_USERNAME ;
+      secret/data/online-boutique/dockerhub token | DOCKERHUB_TOKEN
+```
 
-1. Descargar el código del repositorio.
-2. Solicitar a Vault las credenciales de Docker Hub.
-3. Iniciar sesión en Docker Hub.
-4. Construir y publicar las imágenes Docker.
+Después se utilizan `docker/login-action@v4` y `docker/build-push-action@v6` para publicar imágenes con la etiqueta `latest`.
 
-La matriz incluye 12 servicios:
+### 8.2 Despliegue con Helm
 
-- frontend
-- adservice
-- cartservice
-- checkoutservice
-- currencyservice
-- emailservice
-- loadgenerator
-- paymentservice
-- productcatalogservice
-- recommendationservice
-- shippingservice
-- shoppingassistantservice
+El job `deploy` espera a que termine correctamente la construcción y se ejecuta en el runner `self-hosted`.
 
-Las imágenes se publican con la etiqueta `latest` en la cuenta de Docker Hub configurada.
+Comando utilizado en el workflow:
 
-### 8.2 Despliegue continuo
-
-El job `deploy` depende de `build-and-push`, por lo que comienza después de que termina correctamente la construcción de las imágenes.
-
-Este job utiliza un runner `self-hosted`, que tiene acceso al entorno local de Kubernetes.
-
-El despliegue se realiza mediante Helm, utilizando el Chart `helm-chart-custom`.
+```powershell
+helm upgrade --install online-boutique-custom ./helm-chart-custom `
+  --set imageRepository=${{ env.DOCKERHUB_USERNAME }} `
+  --set imageTag=latest
+```
 
 ### 8.3 Prueba de Vault
 
-El workflow `.github/workflows/vault-demo.yml` se ejecuta manualmente mediante `workflow_dispatch`.
-
-Su propósito es comprobar que GitHub Actions puede consultar Vault y utilizar las credenciales obtenidas para iniciar sesión en Docker Hub.
+El workflow `.github/workflows/vault-demo.yml` permite probar manualmente la lectura de credenciales. En la Fase III se comprobó que el inicio de sesión en Docker Hub devolvió `Login Succeeded`.
 
 ## 9. Despliegue con Helm y Kubernetes
 
-El Helm Chart personalizado se encuentra en `helm-chart-custom`.
+El Chart `helm-chart-custom` genera Deployments y Services `ClusterIP` para los servicios definidos y recursos de Redis para el carrito.
 
-El archivo `values.yaml` establece:
+**Alcance real:** el pipeline construye 12 imágenes, pero el Chart personalizado despliega **10 microservicios y Redis**. `loadgenerator` y `shoppingassistantservice` no tienen Deployments propios en este Chart.
 
-- Repositorio de imágenes: `huevarios`.
-- Etiqueta de imágenes: `latest`.
-- Puertos y variables de entorno.
-- Configuración de Redis.
-
-La plantilla `deployments.yaml` recorre los servicios definidos en `values.yaml` y genera un Deployment para cada uno.
-
-La plantilla `services.yaml` crea Services de tipo `ClusterIP`, que permiten la comunicación interna.
-
-La plantilla `redis.yaml` crea el Deployment y el Service de Redis para el carrito de compras.
-
-**Alcance actual:** el pipeline construye 12 imágenes Docker. El Helm Chart personalizado configura directamente 10 microservicios y Redis. Los servicios `loadgenerator` y `shoppingassistantservice` no tienen Deployments propios definidos en este Chart.
+El README anterior mencionaba `huevarios` como repositorio por defecto en `values.yaml`. El pipeline actual sobrescribe `imageRepository` con el usuario recuperado de Vault (`bobbycheeza`). También debe revisarse el valor por defecto del archivo `helm-chart-custom/values.yaml` para evitar referencias antiguas.
 
 ## 10. Cómo reproducir el proyecto
 
-### Requisitos
+Los ejemplos de Windows utilizan **PowerShell**. Para Ansible se requiere un entorno Linux o WSL con Ansible instalado. También se necesitan Docker Desktop, Terraform, `kubectl`, Helm, Git, Vault CLI y acceso autorizado a AWS.
 
-Se necesita un entorno con:
+### Paso 1. Repositorio
 
-- Git y acceso al repositorio.
-- Terraform.
-- Docker y kind.
-- Kubernetes CLI (`kubectl`).
-- Helm.
-- Ansible.
-- Acceso autorizado a AWS.
-- HashiCorp Vault CLI.
-- Runner self-hosted configurado para GitHub Actions.
-- Permisos y credenciales necesarios.
+```powershell
+git clone https://github.com/bobbycheeza/microservices-demo.git
+cd microservices-demo
+```
 
-### Paso 1. Preparar AWS
+Ruta utilizada durante el desarrollo:
 
-Iniciar el entorno AWS Academy, si se utiliza, y configurar credenciales válidas de AWS.
+```powershell
+cd "C:\Users\gaelp\Desktop\Word\Octavo Semestre\Proyecto de DevOps\microservices-demo"
+```
 
-Desde el directorio correspondiente a la infraestructura AWS:
+### Paso 2. AWS con Terraform
 
-```bash
+Desde la raíz del repositorio:
+
+```powershell
+cd terraform_aws
 terraform init
 terraform plan
 terraform apply
 terraform output ip_publica
 ```
 
-La dirección IP obtenida se utiliza para acceder al servidor.
+**Cuando la EC2 ya existe y solo se necesita actualizar el estado de Terraform**, utilizar:
 
-### Paso 2. Configurar Vault
+```powershell
+terraform apply -refresh-only
+terraform output ip_publica
+```
 
-Actualizar el inventario de Ansible con la IP y los datos de conexión correspondientes.
+`-refresh-only` no crea ni modifica la instancia; únicamente actualiza el estado y sus outputs. Revisar el plan antes de confirmar.
 
-Ejecutar el playbook:
+### Paso 3. Ansible
+
+Desde la raíz del repositorio, en Linux/WSL, actualizar la IP del inventario y ejecutar:
 
 ```bash
+cd ansible-lab
 ansible-playbook -i inventario-aws.ini instalar-vault.yml
 ```
 
-Inicializar Vault únicamente si es una instalación nueva. En instalaciones ya inicializadas, desbloquearlo con las llaves autorizadas.
+### Paso 4. VAULT_ADDR y desellado
 
-Configurar la política de lectura y las credenciales necesarias sin publicar valores sensibles.
+En PowerShell, sustituir el marcador por la IP actual de EC2:
 
-### Paso 3. Crear el clúster local
+```powershell
+$env:VAULT_ADDR = "http://<IP_PUBLICA_EC2>:8200"
+vault status
+vault operator unseal
+vault operator unseal
+vault status
+```
 
-Desde `terraform_local`:
+En Linux/WSL se utiliza:
 
 ```bash
+export VAULT_ADDR="http://<IP_PUBLICA_EC2>:8200"
+vault status
+```
+
+Cada ejecución de `vault operator unseal` solicita una llave diferente. Introducirlas únicamente en la terminal autorizada, nunca como argumentos visibles, en capturas ni en el README. El servidor ya inicializado **no debe inicializarse de nuevo**. Confirmar que `Sealed` sea `false`.
+
+### Paso 5. Clúster local
+
+Con Docker Desktop iniciado, desde la raíz del repositorio:
+
+```powershell
+cd terraform_local
 terraform init
 terraform plan
 terraform apply
+kubectl --context kind-online-boutique get nodes
 ```
 
-Verificar el clúster:
+El nodo debe aparecer como `Ready`. Si el clúster ya existe, revisar el plan antes de aplicar cambios.
 
-```bash
-kubectl get nodes
+### Paso 6. Runner self-hosted
+
+Abrir otra ventana de PowerShell:
+
+```powershell
+cd C:\actions-runner
+.\run.cmd
 ```
 
-### Paso 4. Preparar GitHub Actions
+Esperar `Listening for Jobs` y mantener la ventana abierta durante el despliegue.
 
-Configurar en GitHub:
+### Paso 7. GitHub Actions
 
-- Variable `VAULT_ADDR` con la dirección accesible de Vault.
-- Secreto `VAULT_TOKEN` con un token autorizado para leer las credenciales.
-- Runner self-hosted activo y conectado al repositorio.
+En **Settings → Secrets and variables → Actions** del repositorio, comprobar:
 
-### Paso 5. Ejecutar el pipeline
+- Variable `VAULT_ADDR`: dirección actual de Vault.
+- Secreto `VAULT_TOKEN`: token vigente con permisos `ci-readonly`.
+- Runner self-hosted: conectado y disponible.
 
-Enviar cambios autorizados a la rama `main` para activar el workflow `ci-build.yml`.
+No agregar las credenciales de Docker Hub directamente como secretos de GitHub.
 
-Verificar en GitHub Actions la construcción y publicación de imágenes y la ejecución del job de despliegue.
+### Paso 8. Pipeline
 
-### Paso 6. Comprobar Kubernetes
+En **Actions → CI/CD - Build, Push and Deploy**, ejecutar **Run workflow** o enviar un cambio autorizado a `main`. Verificar que los 12 jobs de construcción y el job de despliegue terminen correctamente.
 
-Verificar los recursos desplegados:
+### Paso 9. Kubernetes y frontend
 
-```bash
-kubectl get deployments
-kubectl get pods
-kubectl get services
+```powershell
+kubectl --context kind-online-boutique get deployments
+kubectl --context kind-online-boutique get pods
+kubectl --context kind-online-boutique get services
+kubectl --context kind-online-boutique port-forward svc/frontend 8080:80
 ```
 
-Para acceder al frontend localmente, cuando el Service esté disponible:
-
-```bash
-kubectl port-forward service/frontend 8080:80
-```
-
-Después, abrir `http://localhost:8080` en el navegador.
+Abrir `http://localhost:8080`. **El port-forward al puerto 80 del Service `frontend` se comprobó funcionando con el Chart personalizado.** Mantener abierta la terminal mientras se utiliza la tienda.
 
 ## 11. Resultados
 
-Durante el proyecto se implementaron los siguientes componentes:
+| Indicador | Resultado |
+|---|---|
+| Pipeline de Fase III, corrida 1 | **2 min 34 s** |
+| Pipeline de Fase III, corrida 2 | **2 min 31 s** |
+| Pipeline posterior, Fase IV | **2 min 18 s** (ejecución exitosa #4) |
+| Imágenes Docker construidas y publicadas | **12** |
+| Segunda ejecución de Ansible | **`changed=0`** |
+| Intento de escritura con token `ci-readonly` | **HTTP 403** |
+| Secretos de Docker Hub almacenados directamente en GitHub | **De 2 a 0** |
+| Despliegue con Helm | **Exitoso** |
+| Pods comprobados recientemente | **11 en estado `Running`** |
+| Acceso al frontend | **Exitoso en `http://localhost:8080`** |
 
-- Infraestructura local definida mediante Terraform.
-- Infraestructura AWS definida mediante Terraform.
-- Automatización de la instalación de Vault con Ansible.
-- Políticas de acceso a secretos.
-- Workflow para probar la lectura de credenciales desde Vault.
-- Pipeline para construir y publicar 12 imágenes Docker.
-- Configuración de despliegue con Helm en Kubernetes.
-- Uso de un runner self-hosted para acceder al clúster local.
+**Tiempo de arranque desde cero:** no se registró una medición completa y verificable, por lo que no se inventa una cifra. Se propone medir desde la preparación de la infraestructura hasta que el frontend responda.
 
-Las pruebas realizadas durante el desarrollo incluyeron autenticación con Docker Hub mediante Vault, construcción de imágenes y despliegues de la aplicación.
+Los tiempos de GitHub Actions no son una comparación controlada frente a un proceso manual. Tampoco se midieron porcentajes de reducción de errores, disponibilidad o escalabilidad.
 
-Los tiempos exactos de ejecución y otras métricas cuantitativas deben incorporarse a partir de las evidencias de GitHub Actions y las pruebas registradas. No se presentan cifras de mejora que no hayan sido medidas.
+## 12. Retos reales y soluciones
 
-## 12. Retos y lecciones aprendidas
+### Cambio de IP en AWS
 
-### Cambios de dirección IP en AWS
+La IP pública de EC2 cambió y la configuración dejó de apuntar al servidor correcto. Se actualizó la información con Terraform, el inventario de Ansible y `VAULT_ADDR`.
 
-Al reiniciar o recrear la instancia EC2, la dirección IP pública puede cambiar. Esto requiere actualizar la configuración de acceso y la variable `VAULT_ADDR`.
+### Vault sellado
 
-### Desbloqueo de Vault
+Vault quedó sellado tras reinicios. Se utilizaron las llaves autorizadas con `vault operator unseal` y se confirmó que volvió a estar disponible, sin reinicializarlo.
 
-Vault puede quedar sellado después de reiniciar el servicio. Para volver a utilizar los secretos es necesario desbloquearlo mediante el procedimiento autorizado.
+### Docker Desktop apagado
 
-### Credenciales temporales de AWS
+Terraform y Kubernetes no podían consultar el clúster porque kind depende de Docker. Se inició Docker Desktop, se verificó su funcionamiento y se repitieron los comandos.
 
-En AWS Academy, las credenciales pueden caducar, por lo que es necesario renovarlas antes de ejecutar Terraform.
+### Cambio de cuenta de GitHub
 
-### Runner self-hosted
+La cuenta anterior dejó de estar disponible. Se publicó el repositorio en `bobbycheeza/microservices-demo`, se actualizó el remoto y se volvió a registrar el runner self-hosted. El pipeline terminó correctamente después de la recuperación.
 
-El despliegue necesita un runner con acceso al clúster local. Esto permite comprender la diferencia entre ejecutar la construcción en un runner de GitHub y desplegar desde el equipo local.
+### Credenciales de Docker Hub
 
-### Automatización e idempotencia
+Las credenciales anteriores dejaron de funcionar. Se generó un nuevo token, se actualizó Vault y se comprobó que GitHub Actions podía volver a autenticarse sin guardar el token de Docker Hub en GitHub.
 
-Terraform y Ansible permiten administrar recursos mediante configuraciones declarativas. El handler de Ansible evita reinicios innecesarios cuando la plantilla no cambia.
+### Despliegue local
+
+El job `deploy` necesitaba que el runner y el clúster local estuvieran activos. Tras iniciar los componentes, se verificaron los pods y el acceso a la tienda mediante `kubectl port-forward svc/frontend 8080:80`.
 
 ## 13. Conclusiones
 
-El proyecto permitió integrar diferentes herramientas DevOps para automatizar actividades que normalmente requieren varios pasos manuales.
+El proyecto integró infraestructura como código, automatización de configuración, gestión de secretos, construcción de imágenes y despliegue en Kubernetes. Se comprobaron 12 imágenes publicadas, ejecuciones de pipeline entre 2 min 18 s y 2 min 34 s, idempotencia de Ansible, rechazo de escritura con HTTP 403 y la eliminación de dos secretos de Docker Hub almacenados directamente en GitHub. La tienda también se abrió correctamente desde el navegador.
 
-Terraform facilitó la definición de infraestructura, GitHub Actions automatizó la construcción de imágenes, Ansible permitió configurar Vault y Helm organizó el despliegue de la aplicación en Kubernetes.
-
-También se aplicaron conceptos de seguridad mediante la administración centralizada de secretos y políticas de acceso.
-
-Como mejoras futuras se consideran reforzar la seguridad de red y TLS, revisar la configuración de despliegue de todos los microservicios y medir los tiempos de ejecución para evaluar el impacto de la automatización.
+Estos resultados respaldan la automatización, la consistencia operativa y el control de credenciales propuestos en la Fase I. Como mejoras futuras quedan medir el arranque completo desde cero, comparar tiempos contra un procedimiento manual, habilitar TLS en Vault, restringir el acceso de red y realizar pruebas de carga.
 
 ## 14. Autor
 
-**Gael Portilla Lopez**
-
-Materia: Proyecto Integrador de la Metodología DevOps
-
-Profesor: Ing. William Balán
-
-Proyecto: Online Boutique — Fase IV
+**Gael Portilla Lopez**  
+**Matrícula:** 3088695  
+**Materia:** Proyecto Integrador de la Metodología DevOps  
+**Profesor:** Ing. William Balán  
+**Proyecto:** Online Boutique — Fase IV
