@@ -78,20 +78,26 @@ En `terraform_local/main.tf` se utiliza el proveedor `tehcyx/kind` versión `0.7
 
 `terraform_aws/main.tf` define infraestructura en `us-east-1`: Ubuntu Server 24.04, instancia `t3.micro`, llave SSH, reglas de acceso para los puertos 22 y 8200 y un output llamado `ip_publica`.
 
-El profesor pidió mostrar el recurso `aws_instance` y el output. **El siguiente fragmento es una referencia explicativa y debe sustituirse por el código literal de `terraform_aws/main.tf` antes de entregar**, porque todavía no se ha cotejado ese archivo:
+El recurso `aws_instance` y el output `ip_publica` del archivo real `terraform_aws/main.tf` son:
 
 ```hcl
-# Ejemplo de estructura: verificar identificadores y atributos en main.tf
 resource "aws_instance" "vault" {
-  ami           = var.ami_ubuntu
-  instance_type = "t3.micro"
-  # Configuración de llave SSH y grupo de seguridad en el archivo real
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.micro"
+  key_name               = aws_key_pair.llave.key_name
+  vpc_security_group_ids = [aws_security_group.vault.id]
+
+  tags = {
+    Name = "fase3-vault"
+  }
 }
 
 output "ip_publica" {
   value = aws_instance.vault.public_ip
 }
 ```
+
+La AMI se obtiene de la consulta `data.aws_ami.ubuntu`; la llave SSH se referencia mediante `aws_key_pair.llave` y el grupo de seguridad mediante `aws_security_group.vault`. El output muestra la IP pública de la instancia para conectarse al servidor.
 
 **Nota de seguridad:** esta es una configuración de laboratorio. El acceso HTTP a Vault y las reglas abiertas a `0.0.0.0/0` no son apropiados para producción. Sería necesario restringir la red y configurar TLS.
 
