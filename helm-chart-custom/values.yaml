@@ -4,7 +4,7 @@ imageTag: latest
 services:
   frontend:
     image: frontend
-    replicaCount: 2
+    replicaCount: 3
     port: 8080
     servicePort: 80
     env:
