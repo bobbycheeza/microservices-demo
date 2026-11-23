@@ -7,7 +7,7 @@ metadata:
   labels:
     app: {{ $name }}
 spec:
-  replicas: 1
+  replicas: {{ $service.replicaCount | default 1 }}
   selector:
     matchLabels:
       app: {{ $name }}
